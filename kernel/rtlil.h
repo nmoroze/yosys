@@ -164,8 +164,13 @@ namespace RTLIL
 
 			log_assert(p[0] == '$' || p[0] == '\\');
 			log_assert(p[1] != 0);
-			for (const char *c = p; *c; c++)
+			for (const char *c = p; *c; c++) {
+        if ((unsigned)*c <= (unsigned)' '){
+          log("diff: %ld\n", c - p);
+          log("get_reference: %s, c: %c\n", p, *c);
+        }
 				log_assert((unsigned)*c > (unsigned)' ');
+      }
 
 		#ifndef YOSYS_NO_IDS_REFCNT
 			if (global_free_idx_list_.empty()) {

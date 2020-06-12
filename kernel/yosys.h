@@ -321,9 +321,13 @@ Tcl_Interp *yosys_get_tcl_interp();
 extern RTLIL::Design *yosys_design;
 
 RTLIL::IdString new_id(std::string file, int line, std::string func);
+RTLIL::IdString new_id(std::string file, int line, std::string func, std::string suffix);
 
 #define NEW_ID \
 	YOSYS_NAMESPACE_PREFIX new_id(__FILE__, __LINE__, __FUNCTION__)
+
+#define NEW_ID_SUFFIX(s) \
+	YOSYS_NAMESPACE_PREFIX new_id(__FILE__, __LINE__, __FUNCTION__, s)
 
 // Create a statically allocated IdString object, using for example ID::A or ID($add).
 //

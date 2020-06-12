@@ -239,13 +239,13 @@ struct Clk2fflogicPass : public Pass {
 						clk = cell->getPort(ID::C);
 					}
 
-					Wire *past_clk = module->addWire(NEW_ID);
+					Wire *past_clk = module->addWire(NEW_ID_SUFFIX("past_clk"));
 					past_clk->attributes[ID::init] = clkpol ? State::S1 : State::S0;
 
 					if (word_dff)
-						module->addFf(NEW_ID, clk, past_clk);
+						module->addFf(NEW_ID_SUFFIX("past_clk_ff"), clk, past_clk);
 					else
-						module->addFfGate(NEW_ID, clk, past_clk);
+						module->addFfGate(NEW_ID_SUFFIX("past_clk_ff"), clk, past_clk);
 
 					SigSpec sig_d = cell->getPort(ID::D);
 					SigSpec sig_q = cell->getPort(ID::Q);
@@ -264,12 +264,22 @@ struct Clk2fflogicPass : public Pass {
 						clock_edge_pattern.append(State::S0);
 					}
 
-					SigSpec clock_edge = module->Eqx(NEW_ID, {clk, SigSpec(past_clk)}, clock_edge_pattern);
+					SigSpec clock_edge = module->Eqx(NEW_ID_SUFFIX("clk_edge_eqx"), {clk, SigSpec(past_clk)}, clock_edge_pattern);
 
-					Wire *past_d = module->addWire(NEW_ID, GetSize(sig_d));
-					Wire *past_q = module->addWire(NEW_ID, GetSize(sig_q));
-					if (word_dff) {
-						module->addFf(NEW_ID, sig_d, past_d);
+          std::string sig_d_name = log_signal(sig_d);
+          size_t idx;
+          while ((idx = sig_d_name.find(" ")) != string::npos) {
+            sig_d_name.erase(idx, 1);
+          }
+          std::string sig_q_name = log_signal(sig_q);
+          while ((idx = sig_q_name.find(" ")) != string::npos) {
+            sig_q_name.erase(idx, 1);
+          }
+
+					Wire *past_d = module->addWire(stringf("%s#past_d_wire", sig_d_name.c_str()), GetSize(sig_d));
+          Wire *past_q = module->addWire(stringf("%s#past_q_wire", sig_q_name.c_str()), GetSize(sig_q));
+          if (word_dff) {
+            module->addFf(NEW_ID, sig_d, past_d);
 						module->addFf(NEW_ID, sig_q, past_q);
 					}
 					else {
