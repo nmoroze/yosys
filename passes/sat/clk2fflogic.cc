@@ -267,11 +267,19 @@ struct Clk2fflogicPass : public Pass {
 					SigSpec clock_edge = module->Eqx(NEW_ID_SUFFIX("clk_edge_eqx"), {clk, SigSpec(past_clk)}, clock_edge_pattern);
 
           std::string sig_d_name = log_signal(sig_d);
+          char firstchar = sig_d_name.at(0);
+          if (firstchar != '$' && firstchar != '\\') {
+            sig_d_name.insert(0, "$");
+          }
           size_t idx;
           while ((idx = sig_d_name.find(" ")) != string::npos) {
             sig_d_name.erase(idx, 1);
           }
           std::string sig_q_name = log_signal(sig_q);
+          firstchar = sig_q_name.at(0);
+          if (firstchar != '$' && firstchar != '\\') {
+            sig_q_name.insert(0, "$");
+          }
           while ((idx = sig_q_name.find(" ")) != string::npos) {
             sig_q_name.erase(idx, 1);
           }
