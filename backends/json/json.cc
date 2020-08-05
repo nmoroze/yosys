@@ -177,6 +177,10 @@ struct JsonWriter
 			f << stringf("        %s: {\n", get_name(c->name).c_str());
 			f << stringf("          \"hide_name\": %s,\n", c->name[0] == '$' ? "1" : "0");
 			f << stringf("          \"type\": %s,\n", get_name(c->type).c_str());
+      if (c->type.in(ID($dff), ID($_FF_), ID($_DFF_P_), ID($_DFF_N_))) {
+        f << stringf("          \"nice_name\": %s,\n", get_string(log_signal(c->getPort(ID::Q))).c_str());
+        f << stringf("          \"clk_name\": %s,\n", get_string(log_signal(c->getPort(ID::CLK))).c_str());
+      }
 			if (aig_mode) {
 				Aig aig(c);
 				if (!aig.name.empty()) {
