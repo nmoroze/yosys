@@ -39,7 +39,10 @@ struct Clk2fflogicPass : public Pass {
 		log("\n");
 	}
 	SigSpec wrap_async_control(Module *module, SigSpec sig, bool polarity) {
-		Wire *past_sig = module->addWire(NEW_ID, GetSize(sig));
+		return wrap_async_control(module, sig, polarity, NEW_ID);
+	}
+	SigSpec wrap_async_control(Module *module, SigSpec sig, bool polarity, IdString past_sig_id) {
+		Wire *past_sig = module->addWire(past_sig_id, GetSize(sig));
 		module->addFf(NEW_ID, sig, past_sig);
 		if (polarity)
 			sig = module->Or(NEW_ID, sig, past_sig);
@@ -124,7 +127,7 @@ struct Clk2fflogicPass : public Pass {
 								wport, log_id(module), log_id(cell), log_signal(clk),
 								log_signal(addr), log_signal(data));
 
-						Wire *past_clk = module->addWire(NEW_ID);
+						Wire *past_clk = module->addWire(stringf("\\%s$%d#past_clk#%s", log_id(cell), wport, log_signal(clk)));
 						past_clk->attributes[ID::init] = clkpol ? State::S1 : State::S0;
 						module->addFf(NEW_ID, clk, past_clk);
 
@@ -140,13 +143,13 @@ struct Clk2fflogicPass : public Pass {
 
 						SigSpec clock_edge = module->Eqx(NEW_ID, {clk, SigSpec(past_clk)}, clock_edge_pattern);
 
-						SigSpec en_q = module->addWire(NEW_ID, GetSize(en));
+						SigSpec en_q = module->addWire(stringf("\\%s$%d#en_q", log_id(cell), wport), GetSize(en));
 						module->addFf(NEW_ID, en, en_q);
 
-						SigSpec addr_q = module->addWire(NEW_ID, GetSize(addr));
+						SigSpec addr_q = module->addWire(stringf("\\%s$%d#addr_q", log_id(cell), wport), GetSize(addr));
 						module->addFf(NEW_ID, addr, addr_q);
 
-						SigSpec data_q = module->addWire(NEW_ID, GetSize(data));
+						SigSpec data_q = module->addWire(stringf("\\%s$%d#data_q", log_id(cell), wport), GetSize(data));
 						module->addFf(NEW_ID, data, data_q);
 
 						wr_clk_port[wport] = State::S0;
@@ -176,7 +179,19 @@ struct Clk2fflogicPass : public Pass {
 						continue;
 					}
 
-					Wire *past_q = module->addWire(NEW_ID, ff.width);
+					// Strip spaces from signal name, since Yosys IDs can't contain spaces
+					// Spaces only occur when have a signal that's a slice of a larger bus,
+					// e.g. "\myreg [5:0]", so removing spaces shouldn't result in loss of uniqueness
+					std::string sig_q_str = log_signal(ff.sig_q);
+					sig_q_str.erase(std::remove(sig_q_str.begin(), sig_q_str.end(), ' '), sig_q_str.end());
+
+					// IDs must start with '\' or '$', so we prepend a '\' if needed
+					// The only case this seems to be necessary is if sig_q was originally
+					// a concatenation of signals (e.g. {\Q[8],\Q[4]})
+					if (sig_q_str.empty() || (sig_q_str.front() != '$' && sig_q_str.front() != '\\'))
+						sig_q_str.insert(0, "\\");
+
+					Wire *past_q = module->addWire(stringf("%s#past_q_wire", sig_q_str.c_str()), ff.width);
 					if (!ff.is_fine) {
 						module->addFf(NEW_ID, ff.sig_q, past_q);
 					} else {
@@ -188,7 +203,7 @@ struct Clk2fflogicPass : public Pass {
 					if (ff.has_clk) {
 						ff.unmap_ce_srst(module);
 
-						Wire *past_clk = module->addWire(NEW_ID);
+						Wire *past_clk = module->addWire(stringf("%s#past_clk#%s", sig_q_str.c_str(), log_signal(ff.sig_clk)));
 						initvals.set_init(past_clk, ff.pol_clk ? State::S1 : State::S0);
 
 						if (!ff.is_fine)
@@ -212,7 +227,7 @@ struct Clk2fflogicPass : public Pass {
 
 						SigSpec clock_edge = module->Eqx(NEW_ID, {ff.sig_clk, SigSpec(past_clk)}, clock_edge_pattern);
 
-						Wire *past_d = module->addWire(NEW_ID, ff.width);
+						Wire *past_d = module->addWire(stringf("%s#past_d_wire", sig_q_str.c_str()), ff.width);
 						if (!ff.is_fine)
 							module->addFf(NEW_ID, ff.sig_d, past_d);
 						else
@@ -259,7 +274,8 @@ struct Clk2fflogicPass : public Pass {
 							module->addAndGate(NEW_ID, qval, clrval, ff.sig_q);
 						}
 					} else if (ff.has_arst) {
-						SigSpec arst = wrap_async_control(module, ff.sig_arst, ff.pol_arst);
+						IdString id = stringf("%s#past_arst#%s", sig_q_str.c_str(), log_signal(ff.sig_arst));
+						SigSpec arst = wrap_async_control(module, ff.sig_arst, ff.pol_arst, id);
 						if (!ff.is_fine)
 							module->addMux(NEW_ID, qval, ff.val_arst, arst, ff.sig_q);
 						else
